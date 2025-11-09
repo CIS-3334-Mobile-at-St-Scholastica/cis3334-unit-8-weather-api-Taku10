@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../data_models/weather_model.dart';
+import '../services/weather_service.dart';
+
 
 void main() {
   runApp(const MyApp());
@@ -29,14 +32,35 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  Widget weatherTile (int position) {
-    print ("Inside weatherTile and setting up tile for positon ${position}");
+  late Future<List<DailyForcast>> futureWeatherForcasts;
+  final Map<String, String> _imageMap = {
+    "clear": 'graphics/sun.png',
+    "clouds": 'graphics/cloud.png',
+    "rain": 'graphics/rain.png'};
+
+  @override
+  void initState() {
+    super.initState();
+    MyRestAPI api = new MyRestAPI();
+    futureWeatherForcasts = api.fetchWeatherForcast();
+    
+  }
+  Widget weatherImage(DailyForcast f) {
+    final main = (f.weather.isNotEmpty ? f.weather.first.main : '').toLowerCase();
+    final assetPath = _imageMap[main] ?? 'graphics/sun.png'; // so thisa is the fallbank image
+    return Image.asset(assetPath);
+  }
+
+  Widget weatherTile(DailyForcast f) {
     return ListTile(
-      leading: Image(image: AssetImage('graphics/sun.png')),
-      title: Text("Title Here"),
-      subtitle: Text("Subtitle Here"),
+      leading: weatherImage(f),
+      title: Text("Weather for ${f.dtTxt.month}/${f.dtTxt.day} at ${f.dtTxt.hour}:00"),
+      subtitle: Text(
+        "${f.weather.first.description} — temp: ${f.main.temp.toStringAsFixed(0)}°",
+      ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -44,14 +68,35 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: ListView.builder(
-        itemCount: 4,
-        itemBuilder: (BuildContext context, int position) {
-          return Card(
-            child: weatherTile(position),
+      body: FutureBuilder<List<DailyForcast>>(
+        future: futureWeatherForcasts,
+        builder: (context, snapshot) {
+          // loading
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          // empty (null or empty list) → return an empty container
+          final items = snapshot.data;
+          if (items == null || items.isEmpty) {
+            return Container();
+          }
+
+          // data
+          return ListView.builder(
+            itemCount: items.length,
+            itemBuilder: (context, index) => Card(
+              child: weatherTile(items[index]),
+            ),
           );
         },
-      ),
+      )
+      ,
       // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
